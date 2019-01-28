@@ -1,0 +1,57 @@
+service: nowplaying
+
+custom:
+  secrets: ${file(secrets.json)}
+
+provider:
+  name: aws
+  runtime: ruby2.5
+  environment:
+    SNS_ARN: ${self:custom.secrets.SNS_ARN}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:us-east-1:*:*"
+    - Effect: Allow
+      Action:
+        - "sns:*"
+      Resource: "arn:aws:sns:us-east-1:*:*"
+
+functions:
+  now_playing:
+    handler: handler.now_playing
+    events:
+      - http:
+          path: nowplaying
+          method: post
+          cors: true
+  dispatcher:
+    handler: handler.dispatcher
+    events:
+      - sns: nowplaying
+
+resources:
+  Resources:
+    UsersDynamoDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: 'nowplaying-users'
