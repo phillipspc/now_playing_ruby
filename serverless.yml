@@ -45,6 +45,15 @@ functions:
     layers:
       - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:2
 
+  callback:
+    handler: handler.callback
+    events:
+      - http:
+          path: callback
+          method: get
+          cors: true
+    layers:
+      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:2
 
 resources:
   Resources:

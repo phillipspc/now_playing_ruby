@@ -2,9 +2,9 @@ require 'json'
 require 'cgi'
 require 'aws-sdk'
 require 'slack-notifier'
-require 'dynamoid'
 require 'uri'
 require 'rack'
+require 'net/http'
 
 def now_playing(event:, context:)
   parsed = Rack::Utils.parse_nested_query(event['body'])
@@ -33,37 +33,79 @@ def check_for_user(event:, context:)
   end
 end
 
-def find_user_by_id(id)
-  dynamodb = Aws::DynamoDB::Client.new
+def callback(event:, context:)
+  id = event['queryStringParameters']['state']
+  code = event['queryStringParameters']['code']
 
-  params = {
-    table_name: 'nowplaying-users',
-    key_condition_expression: "#id = :id",
-    expression_attribute_names: {
-      "#id" => "id"
-    },
-    expression_attribute_values: {
-      ":id" => id
-    }
+  # use the code from the query string params to request spotify access tokens
+  response = request_access_token(code)
+
+  # put everything together and create the user record
+  parsed = JSON.parse(response.body)
+  timestamp = Time.now.to_i
+
+  item = {
+    id: id,
+    access_token: parsed['access_token'],
+    refresh_token: parsed['refresh_token'],
+    created_at: timestamp,
+    updated_at: timestamp
   }
 
-  dynamodb.query(params).items.first
+  dynamodb = Aws::DynamoDB::Client.new
+  dynamodb.put_item({ table_name: 'nowplaying-users', item: item })
+
+  {
+    statusCode: 200,
+    body: JSON.generate({ message: "Authorization successful. You are now ready to use the /nowplaying command!" })
+  }
 end
 
-def fetch_track(user, response_url)
-end
+private
 
-def send_spotify_auth(id, response_url)
-  query = {
-    client_id: ENV['SPOTIFY_CLIENT_ID'],
-    response_type: "code",
-    redirect_uri: "http://www.google.com",
-    scope: 'user-read-playback-state',
-    state: id
-  }.to_query
+  def find_user_by_id(id)
+    dynamodb = Aws::DynamoDB::Client.new
 
-  authorize_url = URI::HTTP.build(host: "accounts.spotify.com", path: "/authorize", query: query)
+    params = {
+      table_name: 'nowplaying-users',
+      key_condition_expression: "#id = :id",
+      expression_attribute_names: {
+        "#id" => "id"
+      },
+      expression_attribute_values: {
+        ":id" => id
+      }
+    }
 
-  notifier = Slack::Notifier.new response_url.to_s
-  notifier.ping "Use this link to authorize your account: #{authorize_url}"
-end
+    dynamodb.query(params).items.first
+  end
+
+  def fetch_track(user, response_url)
+  end
+
+  def send_spotify_auth(id, response_url)
+    query = URI.encode_www_form({
+      client_id: ENV['SPOTIFY_CLIENT_ID'],
+      response_type: "code",
+      redirect_uri: ENV['SPOTIFY_REDIRECT_URI'],
+      scope: 'user-read-playback-state',
+      state: id
+    })
+
+    authorize_url = URI::HTTP.build(host: "accounts.spotify.com", path: "/authorize", query: query)
+
+    notifier = Slack::Notifier.new(response_url)
+    notifier.ping "Use this link to authorize your account: #{authorize_url}"
+  end
+
+  def request_access_token(code)
+    uri = URI("https://accounts.spotify.com/api/token")
+    params = {
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: ENV['SPOTIFY_REDIRECT_URI'],
+      client_id: ENV['SPOTIFY_CLIENT_ID'],
+      client_secret: ENV['SPOTIFY_CLIENT_SECRET']
+    }
+    Net::HTTP::post_form(uri, params)
+  end
