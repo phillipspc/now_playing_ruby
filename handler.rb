@@ -47,7 +47,6 @@ def callback(event:, context:)
 
   item = {
     id: id,
-    access_token: parsed['access_token'],
     refresh_token: parsed['refresh_token'],
     created_at: timestamp,
     updated_at: timestamp
@@ -92,7 +91,29 @@ private
     }
 
     response = HTTParty.get(url, headers: headers)
-    puts response.body
+    data = JSON.parse(response.body)
+
+    show_now_playing(data, response_url)
+  end
+
+  def show_now_playing(data, response_url)
+    notifier = Slack::Notifier.new(response_url)
+
+    if data.keys.size == 0
+      notifier.post(text: "It doesn't look like you're listening to anything", response_type: "in_channel")
+    elsif !data['item'] && data['device']['is_private_session']
+      notifier.post(
+        text: "It looks like you're currently in a private session. You'll need to go public to " \
+              "share what you're listening to.",
+        response_type: "in_channel"
+      )
+    else
+      notifier.post(
+        text: data['item']['external_urls']['spotify'],
+        response_type: "in_channel",
+        unfurl_links: true
+      )
+    end
   end
 
   def refresh_token(token)
@@ -118,7 +139,7 @@ private
     authorize_url = URI::HTTP.build(host: "accounts.spotify.com", path: "/authorize", query: query)
 
     notifier = Slack::Notifier.new(response_url)
-    notifier.ping "Use this link to authorize your account: #{authorize_url}"
+    notifier.ping("Use this link to authorize your account: #{authorize_url}")
   end
 
   def request_access_token(code)
