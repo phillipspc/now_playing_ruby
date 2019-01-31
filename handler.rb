@@ -5,6 +5,7 @@ require 'slack-notifier'
 require 'uri'
 require 'rack'
 require 'net/http'
+require 'httparty'
 
 def now_playing(event:, context:)
   parsed = Rack::Utils.parse_nested_query(event['body'])
@@ -81,6 +82,28 @@ private
   end
 
   def fetch_track(user, response_url)
+    response = refresh_token(user['refresh_token'])
+    parsed = JSON.parse(response.body)
+    token = parsed['access_token']
+
+    url = 'https://api.spotify.com/v1/me/player/'
+    headers = {
+      "Authorization" => "Bearer #{token}"
+    }
+
+    response = HTTParty.get(url, headers: headers)
+    puts response.body
+  end
+
+  def refresh_token(token)
+    uri = URI("https://accounts.spotify.com/api/token")
+    params = {
+      grant_type: 'refresh_token',
+      refresh_token: token,
+      client_id: ENV['SPOTIFY_CLIENT_ID'],
+      client_secret: ENV['SPOTIFY_CLIENT_SECRET']
+    }
+    Net::HTTP::post_form(uri, params)
   end
 
   def send_spotify_auth(id, response_url)

@@ -36,14 +36,14 @@ functions:
           method: post
           cors: true
     layers:
-      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:2
+      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:4
 
   check_for_user:
     handler: handler.check_for_user
     events:
       - sns: check_for_user
     layers:
-      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:2
+      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:4
 
   callback:
     handler: handler.callback
@@ -53,7 +53,7 @@ functions:
           method: get
           cors: true
     layers:
-      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:2
+      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:4
 
 resources:
   Resources:
