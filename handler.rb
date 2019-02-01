@@ -28,8 +28,10 @@ def check_for_user(event:, context:)
   user = find_user_by_id(id)
 
   if user
+    p "Found User with id: #{id}"
     fetch_track(user, response_url)
   else
+    p "No user found with id: #{id}"
     send_spotify_auth(id, response_url)
   end
 end
@@ -81,9 +83,11 @@ private
   end
 
   def fetch_track(user, response_url)
+    p "Refreshing user's token: #{user['refresh_token']}"
     response = refresh_token(user['refresh_token'])
     parsed = JSON.parse(response.body)
     token = parsed['access_token']
+    p "New token: #{token}"
 
     url = 'https://api.spotify.com/v1/me/player/'
     headers = {
@@ -91,6 +95,7 @@ private
     }
 
     response = HTTParty.get(url, headers: headers)
+    p "Response from Spotify: #{response}"
     data = JSON.parse(response.body)
 
     show_now_playing(data, response_url)
@@ -100,13 +105,20 @@ private
     notifier = Slack::Notifier.new(response_url)
 
     if data.keys.size == 0
-      notifier.post(text: "It doesn't look like you're listening to anything", response_type: "in_channel")
-    elsif !data['item'] && data['device']['is_private_session']
-      notifier.post(
-        text: "It looks like you're currently in a private session. You'll need to go public to " \
-              "share what you're listening to.",
-        response_type: "in_channel"
-      )
+      p "Empty response from Spotify"
+      notifier.post(text: "It doesn't look like you're listening to anything.", response_type: "in_channel")
+    elsif !data['item']
+      if data['device']['is_private_session']
+        p "Private Session detected"
+        notifier.post(
+          text: "It looks like you're currently in a private session. You'll need to go public to " \
+                "share what you're listening to.",
+          response_type: "in_channel"
+        )
+      else
+        p "No item attribute in Spotify response"
+        notifier.post(text: "It doesn't look like you're listening to anything.", response_type: "in_channel")
+      end
     else
       notifier.post(
         text: data['item']['external_urls']['spotify'],
