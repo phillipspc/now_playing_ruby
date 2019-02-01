@@ -6,8 +6,12 @@ custom:
 provider:
   name: aws
   runtime: ruby2.5
+  memorySize: 128
   environment:
-    SNS_ARN: ${self:custom.secrets.SNS_ARN}
+    CHECK_FOR_USER_ARN: ${self:custom.secrets.CHECK_FOR_USER_ARN}
+    SPOTIFY_CLIENT_ID: ${self:custom.secrets.SPOTIFY_CLIENT_ID}
+    SPOTIFY_CLIENT_SECRET: ${self:custom.secrets.SPOTIFY_CLIENT_SECRET}
+    SPOTIFY_REDIRECT_URI: ${self:custom.secrets.SPOTIFY_REDIRECT_URI}
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -32,10 +36,25 @@ functions:
           path: nowplaying
           method: post
           cors: true
-  dispatcher:
-    handler: handler.dispatcher
+    layers:
+      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:4
+
+  check_for_user:
+    handler: handler.check_for_user
     events:
-      - sns: nowplaying
+      - sns: check_for_user
+    layers:
+      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:4
+
+  callback:
+    handler: handler.callback
+    events:
+      - http:
+          path: callback
+          method: get
+          cors: true
+    layers:
+      - arn:aws:lambda:us-east-1:117620298113:layer:gemPacks:4
 
 resources:
   Resources:
