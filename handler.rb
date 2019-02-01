@@ -151,7 +151,18 @@ private
     authorize_url = URI::HTTP.build(host: "accounts.spotify.com", path: "/authorize", query: query)
 
     notifier = Slack::Notifier.new(response_url)
-    notifier.ping("Use this link to authorize your account: #{authorize_url}")
+    notifier.post({
+      text: "Looks like its your first time using this command. You'll need to authorize Spotify to access your account.",
+      attachments: [{
+        fallback: "Authorize with Spotify at #{authorize_url}",
+        actions: [{
+          type: "button",
+          text: "Authorize with Spotify",
+          url: authorize_url,
+				  style: "primary"
+        }]
+      }]
+    })
   end
 
   def request_access_token(code)
